@@ -1,256 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
-// ─── Type color map ────────────────────────────────────────────────────────────
-const TYPE_COLORS = {
-  fire: { bg: "#FF9741", light: "#FFE0C0", dark: "#CC6600" },
-  water: { bg: "#4FC3F7", light: "#C0E8FF", dark: "#0077B6" },
-  grass: { bg: "#63BB5A", light: "#C6F0C2", dark: "#2E7D32" },
-  poison: { bg: "#9C6ADE", light: "#E8D5FF", dark: "#6A1E9A" },
-  electric: { bg: "#F9CF30", light: "#FFF5C0", dark: "#B8860B" },
-  psychic: { bg: "#F87060", light: "#FFD0CC", dark: "#C62828" },
-  ice: { bg: "#74D7E8", light: "#C8F4FF", dark: "#006978" },
-  dragon: { bg: "#7B68EE", light: "#D8D4FF", dark: "#3700B3" },
-  dark: { bg: "#4E4E6A", light: "#D0CFE0", dark: "#1A1A2E" },
-  fairy: { bg: "#F4A7C3", light: "#FFE4F0", dark: "#AD1457" },
-  fighting: { bg: "#D56723", light: "#FFD9B8", dark: "#8B2500" },
-  flying: { bg: "#8BA8EA", light: "#D8E4FF", dark: "#3A5BBF" },
-  rock: { bg: "#C5A34A", light: "#F0E5C0", dark: "#7B5E00" },
-  ground: { bg: "#D97C3B", light: "#FFE4C4", dark: "#8B4513" },
-  bug: { bg: "#9BCB40", light: "#E4F5C0", dark: "#558B2F" },
-  ghost: { bg: "#7A6EA0", light: "#DDD8F0", dark: "#4A148C" },
-  steel: { bg: "#A8A8C8", light: "#E8E8F5", dark: "#455A64" },
-  normal: { bg: "#AAAA88", light: "#E8E8D8", dark: "#616161" },
-};
+import { usePokemonList } from "./hooks/usePokemonList";
+import { usePokemonDetail } from "./hooks/usePokemonDetail";
 
-const getTypeStyle = (type) => TYPE_COLORS[type] || TYPE_COLORS.normal;
+import { PokemonCard } from "./components/PokemonCard";
+import { TypeBadge } from "./components/TypeBadge";
+import { LoadingSpinner } from "./components/LoadingSpinner";
+import { ErrorMessage } from "./components/ErrorMessage";
 
-// ─── Custom hook ───────────────────────────────────────────────────────────────
-function usePokemon() {
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+import { getTypeStyle } from "./utils/typeColors";
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+import {
+  padId,
+  capitalize,
+  formatHeight,
+  formatWeight,
+  STAT_LABELS,
+} from "./utils/helpers";
 
-    const fetchList = async () => {
-      try {
-        const res = await fetch("https://pokeapi.co/api/v2/pokemon?limit=20&offset=0");
-        if (!res.ok) throw new Error("Falha ao buscar lista de pokémons");
-        const data = await res.json();
-
-        const details = await Promise.all(
-          data.results.map((p) =>
-            fetch(p.url).then((r) => {
-              if (!r.ok) throw new Error("Falha ao buscar detalhes");
-              return r.json();
-            })
-          )
-        );
-
-        if (!cancelled) {
-          setList(details);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e.message);
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchList();
-    return () => { cancelled = true; };
-  }, []);
-
-  return { list, loading, error };
-}
-
-function usePokemonDetail(id) {
-  const [pokemon, setPokemon] = useState(null);
-  const [species, setSpecies] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setPokemon(null);
-    setSpecies(null);
-
-    const fetchDetail = async () => {
-      try {
-        const [pkRes, spRes] = await Promise.all([
-          fetch(`https://pokeapi.co/api/v2/pokemon/${id}`),
-          fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`),
-        ]);
-        if (!pkRes.ok || !spRes.ok) throw new Error("Falha ao buscar detalhes do pokémon");
-        const [pk, sp] = await Promise.all([pkRes.json(), spRes.json()]);
-        if (!cancelled) {
-          setPokemon(pk);
-          setSpecies(sp);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e.message);
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchDetail();
-    return () => { cancelled = true; };
-  }, [id]);
-
-  return { pokemon, species, loading, error };
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-const padId = (n) => String(n).padStart(3, "0");
-const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const formatHeight = (h) => {
-  const cm = h * 10;
-  const inches = Math.round(cm / 2.54);
-  const ft = Math.floor(inches / 12);
-  const inch = inches % 12;
-  return `${ft}'${inch}" (${(cm / 100).toFixed(2)} m)`;
-};
-const formatWeight = (w) => {
-  const kg = w / 10;
-  return `${(kg * 2.205).toFixed(1)} lbs (${kg.toFixed(1)} kg)`;
-};
-
-const STAT_LABELS = {
-  hp: "HP",
-  attack: "Atk",
-  defense: "Def",
-  "special-attack": "Sp. Atk",
-  "special-defense": "Sp. Def",
-  speed: "Speed",
-};
-
-// ─── Components ────────────────────────────────────────────────────────────────
-
-function TypeBadge({ type, small }) {
-  const style = getTypeStyle(type);
-  return (
-    <span
-      style={{
-        background: style.bg,
-        color: "#fff",
-        borderRadius: 20,
-        padding: small ? "2px 8px" : "3px 12px",
-        fontSize: small ? 10 : 12,
-        fontWeight: 700,
-        letterSpacing: 0.5,
-        textTransform: "capitalize",
-        display: "inline-block",
-        marginRight: 4,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-      }}
-    >
-      {type}
-    </span>
-  );
-}
-
-function PokemonCard({ pokemon, onClick }) {
-  const primaryType = pokemon.types[0].type.name;
-  const typeStyle = getTypeStyle(primaryType);
-  const sprite =
-    pokemon.sprites.other?.["official-artwork"]?.front_default ||
-    pokemon.sprites.front_default;
-
-  return (
-    <div
-      onClick={() => onClick(pokemon.id)}
-      style={{
-        background: `linear-gradient(135deg, ${typeStyle.bg} 0%, ${typeStyle.dark} 100%)`,
-        borderRadius: 16,
-        padding: "14px 14px 10px",
-        cursor: "pointer",
-        position: "relative",
-        overflow: "hidden",
-        transition: "transform 0.18s, box-shadow 0.18s",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.13)",
-        minHeight: 120,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
-        e.currentTarget.style.boxShadow = "0 10px 28px rgba(0,0,0,0.22)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "";
-        e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.13)";
-      }}
-    >
-      {/* Pokéball decoration */}
-      <div
-        style={{
-          position: "absolute",
-          right: -18,
-          bottom: -18,
-          width: 90,
-          height: 90,
-          borderRadius: "50%",
-          border: "18px solid rgba(255,255,255,0.12)",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          right: 12,
-          bottom: 12,
-          width: 50,
-          height: 50,
-          borderRadius: "50%",
-          border: "10px solid rgba(255,255,255,0.08)",
-          pointerEvents: "none",
-        }}
-      />
-
-      <div>
-        <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: 600, marginBottom: 2 }}>
-          #{padId(pokemon.id)}
-        </div>
-        <div style={{ color: "#fff", fontWeight: 800, fontSize: 15, lineHeight: 1.2, marginBottom: 6 }}>
-          {capitalize(pokemon.name)}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {pokemon.types.map((t) => (
-            <TypeBadge key={t.type.name} type={t.type.name} small />
-          ))}
-        </div>
-      </div>
-
-      {sprite && (
-        <img
-          src={sprite}
-          alt={pokemon.name}
-          style={{
-            position: "absolute",
-            right: 4,
-            bottom: 0,
-            width: 72,
-            height: 72,
-            objectFit: "contain",
-            filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.25))",
-          }}
-        />
-      )}
-    </div>
-  );
-}
+// -------------------------------------------------------------------
 
 function StatBar({ name, value }) {
   const max = 255;
@@ -504,6 +272,7 @@ function DetailView({ id, onBack }) {
   );
 }
 
+
 function InfoRow({ label, value }) {
   return (
     <div
@@ -521,35 +290,6 @@ function InfoRow({ label, value }) {
   );
 }
 
-function LoadingSpinner({ color = "#4FC3F7" }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          border: `4px solid #eee`,
-          borderTop: `4px solid ${color}`,
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-          margin: "0 auto 12px",
-        }}
-      />
-      <p style={{ color: "#999", fontSize: 14 }}>Carregando…</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
-
-function ErrorMessage({ message }) {
-  return (
-    <div style={{ textAlign: "center", padding: 32 }}>
-      <div style={{ fontSize: 40, marginBottom: 8 }}>😵</div>
-      <p style={{ color: "#E53935", fontWeight: 700, fontSize: 15 }}>Algo deu errado</p>
-      <p style={{ color: "#999", fontSize: 13 }}>{message}</p>
-    </div>
-  );
-}
 
 function Sidebar({ list, loading, error, selected, onSelect }) {
   return (
@@ -633,7 +373,7 @@ function Sidebar({ list, loading, error, selected, onSelect }) {
 
 // ─── App ────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const { list, loading, error } = usePokemon();
+  const { list, loading, error } = usePokemonList();
   const [selectedId, setSelectedId] = useState(null);
   const [mobileView, setMobileView] = useState("list"); // "list" | "detail"
 
